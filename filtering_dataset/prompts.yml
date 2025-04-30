@@ -1,0 +1,36 @@
+# prompts.yml
+# Configuration for multi-category classification of military aircraft images.
+
+# CLIP model configuration
+model_name: "openai/clip-vit-base-patch32"
+
+# Define categories with specific prompts and thresholds
+filters:
+  - name: art_images
+    positive_texts:
+      - "digital artwork of military aircraft"
+      - "poster of military aircraft"
+      - "drawing of military aircraft"
+      - "painting of military aircraft"
+      - "3D render of military aircraft"
+      - "video game screenshot of military aircraft"
+    threshold: 0.45  # Slightly lower threshold to catch more art
+
+  - name: top_view_aircraft
+    positive_texts:
+      - "military aircraft photographed from above"
+      - "top-down view of military airplane"
+      - "military jet seen from above"
+      - "aerial photograph looking down at military aircraft"
+      - "fighter jet viewed from higher altitude"
+    threshold: 0.5
+
+  - name: ground_view_aircraft
+    positive_texts:
+      - "military aircraft photographed from ground level"
+      - "fighter jet viewed from below"
+      - "military airplane taking off viewed from ground"
+      - "military aircraft on runway viewed from eye level"
+      - "low angle photograph of military jet"
+      - "ground perspective of military aircraft"
+    threshold: 0.48  # Slightly lower threshold to prioritize ground views

@@ -1,0 +1,51 @@
+# Configuration for aircraft image classification
+
+# Paths configuration
+paths:
+  dataset: "dataset"       # Path to the dataset directory
+  output: "output"         # Main output directory
+  results: "results"  # Classification results path
+  visualizations: "visualizations"  # Path for visualizations
+
+# CLIP model configuration
+model:
+  name: "openai/clip-vit-base-patch32"  # CLIP model to use
+  device: null  # null means auto-select (cuda if available, else cpu)
+
+# Category definitions with specific prompts and thresholds
+categories:
+  - name: art_images
+    positive_texts:
+      - "poster of military aircraft"
+      - "drawing of military aircraft"
+      - "painting of military aircraft"
+    threshold: 0.55  # Slightly lower threshold to catch more art
+
+  - name: top_view_aircraft
+    positive_texts:
+      - "military jet viewed from above"
+      - "drone photo of aircraft from above"
+      - "airplane seen directly from the top"
+      - "top view of a parked fighter jet"
+      - "aerial top-down image of a military plane"
+      - "looking down at military aircraft"
+    threshold: 0.65
+
+  - name: satellite_images
+    positive_texts:
+      - "satellite image of military airbase"
+      - "overhead view of military base from space"
+      - "satellite image of military airport"
+      - "military base seen from space"
+    threshold: 0.5  # Adjusted threshold
+
+# Classification settings
+classification:
+  default_category: "normal_images"  # Default category if no threshold is met
+  copy_to_folders: true  # Whether to copy images to category folders
+  save_results: true  # Whether to save results to CSV
+
+# Visualization settings
+visualization:
+  enabled: true  # Whether to generate visualizations
+  samples_per_category: 10  # Number of sample images to show per category

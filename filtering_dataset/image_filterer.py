@@ -3,15 +3,14 @@ image_filterer.py
 
 Core module providing the ImageFilterer class. This class handles:
  - caching and tokenizing prompts
- - batching image preprocessing
+ - image preprocessing without batching for simplicity
  - running CLIP inference
  - computing confidence scores for multiple categories simultaneously
  - tracking detailed scores for advanced classification
 """
 import logging
-import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, TypedDict, Tuple, Any, Union
+from typing import Dict, List, Optional, Union, Any
 
 import numpy as np
 from PIL import Image, UnidentifiedImageError
@@ -20,16 +19,13 @@ import pandas as pd
 from tqdm import tqdm
 
 
-class FilterConfig(TypedDict):
-    """TypedDict describing a single filter stage."""
-    name: str
-    positive_texts: List[str]
-    threshold: float
-
-
 class ImageFilterer:
     """
-    Encapsulates batch scoring and file operations for image filtering.
+    Encapsulates image scoring and classification using the CLIP model.
+
+    This implementation processes images one by one without batching for simplicity
+    and greater control over the process. It stores detailed scoring results
+    for each image and prompt combination.
 
     Attributes:
         model        : Pre-trained CLIPModel on specified device.
@@ -85,7 +81,7 @@ class ImageFilterer:
 
     def get_detailed_scores(self) -> Dict[str, List[float]]:
         """
-        Returns the detailed per-prompt scores cached during batch processing.
+        Returns the detailed per-prompt scores cached during processing.
 
         Returns:
             Dictionary mapping image paths to lists of confidence scores,
@@ -93,20 +89,18 @@ class ImageFilterer:
         """
         return self._score_cache
 
-    def process_batch(
+    def process_images(
         self,
         image_paths: List[str],
         positive_texts: List[str],
-        batch_size: int = 8
     ) -> pd.DataFrame:
         """
-        Processes images in batches and computes a confidence score per image.
-        Also stores detailed per-prompt scores for each image for later category analysis.
+        Processes images one by one and computes a confidence score per image.
+        Also stores detailed per-prompt scores for each image for category analysis.
 
         Args:
             image_paths    : List[str] of image file paths.
             positive_texts : List[str] prompts for target detection.
-            batch_size     : Number of images per inference batch.
 
         Returns:
             pd.DataFrame with columns ['path', 'filename', 'confidence'].
@@ -119,26 +113,19 @@ class ImageFilterer:
         text_tokens = self._tokenize_prompts(positive_texts)
         num_prompts = len(positive_texts)
 
-        # Iterate over images in streaming batches
-        for start in tqdm(range(0, len(image_paths), batch_size), desc="Processing Batches"):
-            batch_paths = image_paths[start : start + batch_size]
-            images, valid_paths = [], []
-
-            # Load and convert images safely
-            for path in batch_paths:
-                try:
-                    with Image.open(path) as img:
-                        images.append(img.convert("RGB"))
-                        valid_paths.append(path)
-                except (OSError, UnidentifiedImageError) as err:
-                    self.logger.warning(f"Skipping unreadable image {path}: {err}")
-
-            if not images:
+        # Process images one by one for simplicity
+        for path in tqdm(image_paths, desc="Processing Images"):
+            try:
+                # Load and convert image safely
+                with Image.open(path) as img:
+                    image = img.convert("RGB")
+            except (OSError, UnidentifiedImageError) as err:
+                self.logger.warning(f"Skipping unreadable image {path}: {err}")
                 continue
 
-            # Preprocess images to pixel tensors
+            # Preprocess image to pixel tensor
             image_inputs = self.processor(
-                images=images,
+                images=[image],  # Single image in a list
                 return_tensors="pt",
                 padding=True
             ).to(self.device)
@@ -151,117 +138,121 @@ class ImageFilterer:
 
             # Perform inference without gradient tracking
             with torch.no_grad():
-                # Shape [batch_size, num_texts]
+                # Shape [1, num_texts] since we're processing one image
                 logits = self.model(**model_inputs).logits_per_image
                 # Convert logits to probabilities
                 probabilities = torch.softmax(logits, dim=1).cpu().numpy()
 
-            # Process and store results for each image
-            for idx, path in enumerate(valid_paths):
-                # Store detailed per-prompt scores for this image
-                prompt_scores = probabilities[idx, :num_prompts].tolist()
-                self._score_cache[path] = prompt_scores
+            # Store detailed per-prompt scores for this image
+            prompt_scores = probabilities[0, :num_prompts].tolist()
+            self._score_cache[path] = prompt_scores
 
-                # For backward compatibility, compute max confidence across all prompts
-                conf_score = float(max(prompt_scores))
+            # For backward compatibility, compute max confidence across all prompts
+            conf_score = float(max(prompt_scores))
 
-                records.append({
-                    "path": path,
-                    "filename": Path(path).name,
-                    "confidence": conf_score  # Maximum confidence across all prompts
-                })
+            records.append({
+                "path": path,
+                "filename": Path(path).name,
+                "confidence": conf_score  # Maximum confidence across all prompts
+            })
 
         # Return results as DataFrame
         return pd.DataFrame(records)
 
-    def filter_by_category(
+    def classify_images(
         self,
-        df: pd.DataFrame,
-        categories: List[Dict[str, Any]],
+        image_paths: List[str],
+        categories: List[Dict[str, Union[str, List[str], float]]],
         default_category: str = "normal_images"
     ) -> pd.DataFrame:
         """
-        Assigns each image to its best matching category based on confidence scores.
+        Processes all images against all categories and assigns each to its best match.
+
+        This is a more streamlined approach that combines processing and classification
+        in a single function call for simpler usage.
 
         Args:
-            df              : DataFrame from process_batch containing image paths.
-            categories      : List of category configs with name, prompts, threshold.
-            default_category: Name for images not matching any category.
+            image_paths      : List of paths to images to evaluate
+            categories       : List of category configs with name, prompts, threshold
+            default_category : Name for images not matching any category
 
         Returns:
-            DataFrame with added 'category' column.
+            DataFrame with paths, scores for each category, and best matching category
         """
-        # Initialize result DataFrame with category column
-        result_df = df.copy()
-        result_df['category'] = default_category
+        # Extract all positive prompts from all categories
+        all_prompts = []
+        category_names = []
+        thresholds = {}
 
-        # Process each image
-        for idx, row in result_df.iterrows():
-            path = row['path']
+        # Build combined prompt list while tracking category information
+        prompt_to_category_map = {}
+        prompt_index = 0
 
-            # Skip if image not in score cache
-            if path not in self._score_cache:
-                continue
+        for category in categories:
+            category_name = category['name']
+            category_names.append(category_name)
+            thresholds[category_name] = float(category['threshold'])
 
-            prompt_scores = self._score_cache[path]
+            for prompt in category['positive_texts']:
+                all_prompts.append(prompt)
+                prompt_to_category_map[prompt_index] = category_name
+                prompt_index += 1
 
-            # Track best category match
+        # Process all images against all prompts
+        self.logger.info(f"Processing {len(image_paths)} images against {len(all_prompts)} prompts")
+        results_df = self.process_images(image_paths, all_prompts)
+
+        # Create output DataFrame with scores for each category
+        classified_df = pd.DataFrame()
+        classified_df['path'] = results_df['path']
+        classified_df['filename'] = results_df['filename']
+
+        # Initialize score columns for each category
+        for category_name in category_names:
+            classified_df[f'score_{category_name}'] = 0.0
+
+        # Map detailed scores back to their categories
+        detailed_scores = self.get_detailed_scores()
+
+        for i, row in classified_df.iterrows():
+            img_path = row['path']
+            if img_path in detailed_scores:
+                scores = detailed_scores[img_path]
+
+                # Initialize best score per category
+                category_scores = {name: 0.0 for name in category_names}
+
+                # Find the best score for each category
+                for prompt_idx, score in enumerate(scores):
+                    if prompt_idx in prompt_to_category_map:
+                        category = prompt_to_category_map[prompt_idx]
+                        category_scores[category] = max(category_scores[category], score)
+
+                # Set the best score for each category
+                for category, score in category_scores.items():
+                    classified_df.loc[i, f'score_{category}'] = score
+
+        # Add best_category column based on scores and thresholds
+        # Initialize with default category
+        classified_df['best_category'] = default_category
+        classified_df['best_score'] = 0.0
+
+        # Determine best category for each image
+        for i, row in classified_df.iterrows():
             best_category = default_category
             best_score = 0.0
 
-            # Check each category
-            prompt_idx = 0
-            for category in categories:
-                category_name = category['name']
-                threshold = float(category['threshold'])
-                num_prompts = len(category['positive_texts'])
+            for category_name in category_names:
+                score = row[f'score_{category_name}']
+                threshold = thresholds[category_name]
 
-                # Calculate max score for this category's prompts
-                category_scores = prompt_scores[prompt_idx:prompt_idx+num_prompts]
-                category_max_score = max(category_scores) if category_scores else 0.0
-
-                # Update if this is the best match so far
-                if category_max_score >= threshold and category_max_score > best_score:
+                # Only consider scores that meet their category's threshold
+                if score >= threshold and score > best_score:
                     best_category = category_name
-                    best_score = category_max_score
+                    best_score = score
 
-                prompt_idx += num_prompts
+            # Update the DataFrame
+            classified_df.loc[i, 'best_category'] = best_category
+            classified_df.loc[i, 'best_score'] = best_score
 
-            # Assign best category
-            result_df.loc[idx, 'category'] = best_category
-
-        return result_df
-
-    def move_matches(
-        self,
-        df: pd.DataFrame,
-        threshold: float,
-        dest_folder: Path
-    ) -> List[str]:
-        """
-        Moves images with confidence >= threshold into a destination folder.
-
-        Note: This is included for backward compatibility.
-        The new approach uses filter_by_category for more granular control.
-
-        Args:
-            df          : DataFrame from process_batch.
-            threshold   : Float cutoff to select images.
-            dest_folder : Path to move selected images into.
-
-        Returns:
-            List of file paths moved.
-        """
-        dest_folder.mkdir(parents=True, exist_ok=True)
-
-        # Identify which images meet the threshold
-        matches = df[df["confidence"] >= threshold]["path"].tolist()
-
-        # Move each matched image
-        for src_path in matches:
-            src = Path(src_path)
-            dst = dest_folder / src.name
-            shutil.move(str(src), str(dst))
-
-        self.logger.info(f"Moved {len(matches)} images to {dest_folder}")
-        return matches
+        return classified_df

@@ -29,6 +29,7 @@ from transformers import CLIPModel, CLIPProcessor
 from image_filterer import ImageFilterer
 import visualization
 import pandas as pd
+import metrics
 
 def setup_logging(debug: bool = False) -> logging.Logger:
     """
@@ -137,6 +138,53 @@ def copy_images_to_categories(
         logger.info(f"  {category}: {count} images")
 
 
+def run_evaluation(
+        manual_dir: Path,
+        clip_results_df: pd.DataFrame,
+        output_dir: Path,
+        config: dict,
+        logger: logging.Logger
+) -> None:
+    """
+    Evaluates classification performance by comparing with manual classification.
+
+    Args:
+        manual_dir: Directory containing manually classified images
+        clip_results_df: DataFrame with CLIP classification results
+        output_dir: Directory to save evaluation results
+        config: Configuration dictionary
+        logger: Logger instance
+    """
+    logger.info("Starting evaluation against manual classification...")
+
+    # Extract evaluation settings from config
+    low_quality_category = config.get('evaluation', {}).get('low_quality_category', 'shit_data')
+    ignore_categories = config.get('evaluation', {}).get('ignore_in_metrics', [])
+
+    # Ensure the evaluation directory exists
+    eval_dir = output_dir / 'evaluation'
+    eval_dir.mkdir(parents=True, exist_ok=True)
+
+    # Run the evaluation
+    results = metrics.evaluate_classification(
+        manual_dir=manual_dir,
+        clip_results_df=clip_results_df,
+        output_dir=eval_dir,
+        low_quality_category=low_quality_category,
+        ignore_in_metrics=ignore_categories
+    )
+
+    logger.info(f"Evaluation completed. Report saved to {eval_dir / 'evaluation_report.md'}")
+
+    # Log key metrics
+    logger.info(f"Overall accuracy: {results['metrics']['accuracy']:.4f}")
+    logger.info(f"F1 score (weighted): {results['metrics']['f1_weighted']:.4f}")
+
+    if results['misclassifications']:
+        error_rate = results['misclassifications']['misclassification_rate'] * 100
+        logger.info(f"Misclassification rate: {error_rate:.2f}%")
+
+
 def main() -> None:
     """
     Main function to run the classification pipeline.
@@ -233,6 +281,20 @@ def main() -> None:
     if config['visualization']['enabled']:
         logger.info("Generating visualizations...")
         visualization.create_all_visualizations(results_df, viz_dir)
+
+    # Run evaluation if manual classification is available
+    if 'manual_classification_dir' in config.get('evaluation', {}):
+        manual_dir = Path(config['evaluation']['manual_classification_dir'])
+        if manual_dir.is_dir():
+            run_evaluation(
+                manual_dir=manual_dir,
+                clip_results_df=results_df,
+                output_dir=Path(config['paths']['results']),
+                config=config,
+                logger=logger
+            )
+        else:
+            logger.warning(f"Manual classification directory not found: {manual_dir}")
 
     # Print summary statistics
     category_counts = results_df['best_category'].value_counts()

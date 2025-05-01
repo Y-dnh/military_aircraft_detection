@@ -3,53 +3,74 @@
 # Paths configuration
 paths:
   dataset: "dataset"
-  output: "output"
-  results: "results"
-  visualizations: "visualizations"
+  output: "results/filtered_dataset"
+  results: "results/metrics"
+  visualizations: "results/visualizations"
 
 # CLIP model configuration
 model:
-  name: "openai/clip-vit-base-patch32"  # Consider trying larger models for better performance
+  name: ""  # Consider trying larger models for better performance
+  # openai/clip-vit-base-patch16
+  # openai/clip-vit-base-patch32
+  # openai/clip-vit-large-patch14
+  # openai/clip-vit-large-patch14-336
+  # laion/CLIP-ViT-L-14-laion2B-s32B-b82K
+  # openai/clip-RN101
+  # "model/ViT-B32_fine_tuning.pt"
   device: null  # Auto-select (cuda if available, else cpu)
 
 # Category definitions with expanded prompts and refined thresholds
 categories:
   - name: art_images
     positive_texts:
-      - "poster of military aircraft"
+      - "a poster of military aircraft"
       - "drawing of military aircraft"
       - "painting of military aircraft"
+      - "journal military aircraft"
+      - "an illustration of an airplane"
+      - "a digital art of fighter jet"
+      - "a painting of an aircraft"
+      - "a photograph printed in a book with text"
+      - "an airplane image with typography overlay"
     negative_texts:
-      - "image of military aircraft"
-    threshold: 0.58
-    min_difference: 0.15  # Minimum difference from next highest category
-
-  - name: top_view_aircraft
-    positive_texts:
-      # Close top views
-      - "military jet viewed from above"
-      - "drone photo of aircraft from above"
-      - "airplane seen directly from the top"
-      - "top view of a parked fighter jet"
-      - "aerial top-down image of a military plane"
-      - "looking down at military aircraft"
-    negative_texts:
-      - "side view of aircraft"
-      - "bottom view of military aircraft"
-    threshold: 0.62
-    min_difference: 0.12  # Minimum difference from next highest category
+      - "a photograph of an military aircraft"
+      - "a photograph of an airplane"
+      - "aircraft in flight"
+    threshold: 0.8
+    min_difference: 0  # Minimum difference from next highest category
 
   - name: satellite_images
     positive_texts:
-      - "satellite image of military airbase"
+      - "a satellite image of military airbase"
       - "overhead view of military base from space"
       - "satellite image of military airport"
       - "military base seen from space"
+      - "satellite image of airbase"
+      - "satellite images of airport"
+      - "images of airport from above"
     negative_texts:
-      - "image of military aircraft"
+      - "side image of military aircraft"
       - "bottom view of military aircraft"
-    threshold: 0.53
-    min_difference: 0.1  # Minimum difference from next highest category
+      - "a photo of military aircraft on a runway"
+    threshold: 0.55
+    min_difference: 0  # Minimum difference from next highest category
+
+  - name: top_view_aircraft
+    positive_texts:
+      - "military jet viewed from above"
+      - "drone photo of aircraft from above"
+      - "top view of a parked fighter jet"
+      - "aerial top-down image of a military plane"
+      - "looking down at military aircraft"
+      - "photo from military jet cabin"
+      - "a bird’s-eye photograph of a jet"
+      - "view from cockpit of airplane cockpit"
+      - "pilot’s eye view of plane interior"
+    negative_texts:
+      - "side view of military aircraft"
+      - "bottom view of military aircraft"
+    threshold: 0.7
+    min_difference: 0  # Minimum difference from next highest category
 
 # Classification settings
 classification:
@@ -64,3 +85,11 @@ visualization:
   enabled: true
   samples_per_category: 10
   show_confidence_scores: true  # Display confidence scores on visualizations
+
+# Evaluation configuration for comparing with manual classification
+evaluation:
+  manual_classification_dir: "sorted_dataset"  # Path to your manual classification directory
+  low_quality_category: "shit_data"  # Category for low-quality images
+  ignore_in_metrics: ["shit_data"]  # Categories to ignore when computing metrics (empty list means include all)
+  # If you decide to exclude shit_data from metrics calculations:
+  # ignore_in_metrics: ["shit_data"]

@@ -1,35 +1,43 @@
-# Configuration for aircraft image classification
+# Enhanced configuration for aircraft image classification
 
 # Paths configuration
 paths:
-  dataset: "dataset"       # Path to the dataset directory
-  output: "output"         # Main output directory
-  results: "results"  # Classification results path
-  visualizations: "visualizations"  # Path for visualizations
+  dataset: "dataset"
+  output: "output"
+  results: "results"
+  visualizations: "visualizations"
 
 # CLIP model configuration
 model:
-  name: "openai/clip-vit-base-patch32"  # CLIP model to use
-  device: null  # null means auto-select (cuda if available, else cpu)
+  name: "openai/clip-vit-base-patch32"  # Consider trying larger models for better performance
+  device: null  # Auto-select (cuda if available, else cpu)
 
-# Category definitions with specific prompts and thresholds
+# Category definitions with expanded prompts and refined thresholds
 categories:
   - name: art_images
     positive_texts:
       - "poster of military aircraft"
       - "drawing of military aircraft"
       - "painting of military aircraft"
-    threshold: 0.55  # Slightly lower threshold to catch more art
+    negative_texts:
+      - "image of military aircraft"
+    threshold: 0.58
+    min_difference: 0.15  # Minimum difference from next highest category
 
   - name: top_view_aircraft
     positive_texts:
+      # Close top views
       - "military jet viewed from above"
       - "drone photo of aircraft from above"
       - "airplane seen directly from the top"
       - "top view of a parked fighter jet"
       - "aerial top-down image of a military plane"
       - "looking down at military aircraft"
-    threshold: 0.65
+    negative_texts:
+      - "side view of aircraft"
+      - "bottom view of military aircraft"
+    threshold: 0.62
+    min_difference: 0.12  # Minimum difference from next highest category
 
   - name: satellite_images
     positive_texts:
@@ -37,15 +45,22 @@ categories:
       - "overhead view of military base from space"
       - "satellite image of military airport"
       - "military base seen from space"
-    threshold: 0.5  # Adjusted threshold
+    negative_texts:
+      - "image of military aircraft"
+      - "bottom view of military aircraft"
+    threshold: 0.53
+    min_difference: 0.1  # Minimum difference from next highest category
 
 # Classification settings
 classification:
-  default_category: "normal_images"  # Default category if no threshold is met
-  copy_to_folders: true  # Whether to copy images to category folders
-  save_results: true  # Whether to save results to CSV
+  default_category: "normal_images"
+  copy_to_folders: true
+  save_results: true
+  use_negative_prompts: true  # Enable negative prompt functionality
+  confidence_strategy: "fixed"  # Options: "fixed", "adaptive"
 
 # Visualization settings
 visualization:
-  enabled: true  # Whether to generate visualizations
-  samples_per_category: 10  # Number of sample images to show per category
+  enabled: true
+  samples_per_category: 10
+  show_confidence_scores: true  # Display confidence scores on visualizations

@@ -10,6 +10,7 @@ Features:
 - Multiple category classification in a single pass
 - Results visualization
 - Detailed logging and progress tracking
+- Support for negative prompts and minimum confidence difference
 """
 import argparse
 import logging
@@ -193,6 +194,13 @@ def main() -> None:
     categories = config['categories']
     default_category = config['classification']['default_category']
 
+    # Extract additional classification settings
+    use_negative_prompts = config['classification'].get('use_negative_prompts', False)
+    confidence_strategy = config['classification'].get('confidence_strategy', 'fixed')
+
+    logger.info(f"Negative prompts: {'enabled' if use_negative_prompts else 'disabled'}")
+    logger.info(f"Confidence strategy: {confidence_strategy}")
+
     # Start timing
     start_time = time.time()
 
@@ -201,7 +209,9 @@ def main() -> None:
     results_df = filterer.classify_images(
         image_paths,
         categories,
-        default_category
+        default_category,
+        use_negative_prompts=use_negative_prompts,
+        confidence_strategy=confidence_strategy
     )
 
     # Calculate elapsed time

@@ -9,7 +9,7 @@ paths:
 
 # CLIP model configuration
 model:
-  name: ""  # Consider trying larger models for better performance
+  name: "openai/clip-vit-base-patch16"  # Consider trying larger models for better performance
   # openai/clip-vit-base-patch16
   # openai/clip-vit-base-patch32
   # openai/clip-vit-large-patch14
@@ -32,22 +32,58 @@ categories:
       - "a painting of an aircraft"
       - "a photograph printed in a book with text"
       - "an airplane image with typography overlay"
+      - "magazine cover with a jet fighter"
+      - "infographic showing parts of a military aircraft"
+      - "aviation art print of a warplane"
+      - "aircraft profile illustration with labels"
+      - "vintage military aircraft poster"
+      - "vector art of a fighter jet"
+      - "technical drawing of a jet engine"
+      - "exploded diagram of aircraft components"
+      - "comic book panel featuring a jet"
+      - "military plane sketch in pencil"
+      - "retro poster of supersonic fighter"
+      - "stylized jet on promotional aviation poster"
+      - "advertising leaflet with military airplane"
+      - "3D render of fighter aircraft in poster format"
+      - "CGI image of jet with overlaid text"
     negative_texts:
       - "a photograph of an military aircraft"
       - "a photograph of an airplane"
       - "aircraft in flight"
-    threshold: 0.8
+      - "photograph of a military jet on the runway"
+      - "military aircraft captured during takeoff"
+      - "daylight photo of jet parked on concrete"
+    threshold: 0.7
     min_difference: 0  # Minimum difference from next highest category
 
   - name: satellite_images
     positive_texts:
-      - "a satellite image of military airbase"
+      - "satellite image of military airbase"
       - "overhead view of military base from space"
       - "satellite image of military airport"
       - "military base seen from space"
       - "satellite image of airbase"
       - "satellite images of airport"
       - "images of airport from above"
+      - "drone image of fighter jet from above"
+      - "top-down view of military jet on runway"
+      - "overhead drone shot of parked warplane"
+      - "aerial view of fighter aircraft on tarmac"
+      - "top-down UAV image of military aircraft"
+      - "clear drone photo of jet on airbase"
+      - "surveillance drone image of fighter jet"
+      - "satellite image of fighter jet on runway"
+      - "overhead satellite photo of military jet"
+      - "space image of airbase with aircraft visible"
+      - "high-resolution satellite photo of fighter aircraft"
+      - "military planes visible on airbase from satellite"
+      - "military aircraft on parking ramp seen from above"
+      - "aircraft lineup on military airfield from drone"
+      - "jets stationed at airbase seen from satellite"
+      - "airplane hangars and jets seen from space"
+      - "aerial view of hardened aircraft shelters"
+
     negative_texts:
       - "side image of military aircraft"
       - "bottom view of military aircraft"
@@ -66,6 +102,20 @@ categories:
       - "a bird’s-eye photograph of a jet"
       - "view from cockpit of airplane cockpit"
       - "pilot’s eye view of plane interior"
+      - "photo from inside aircraft cockpit"
+      - "pilot view from cockpit"
+      - "airplane interior view"
+      - "view through windshield of a military jet"
+      - "first-person perspective from airplane cabin"
+      - "air-to-air photo of a fighter jet"
+      - "jet photographed from another aircraft"
+      - "close-up of military aircraft mid-flight from above"
+      - "photo of airplane during midair refueling"
+      - "two jets flying in formation, photographed from air"
+      - "jet flying past photographed from cockpit of another plane"
+      - "aerial refueling of a jet in midair"
+      - "fighter jet connected to a tanker aircraft"
+      - "plane refueling operation from above"
     negative_texts:
       - "side view of military aircraft"
       - "bottom view of military aircraft"
@@ -77,12 +127,12 @@ classification:
   default_category: "normal_images"
   copy_to_folders: true
   save_results: true
-  use_negative_prompts: true  # Enable negative prompt functionality
+  use_negative_prompts: false  # Enable negative prompt functionality
   confidence_strategy: "fixed"  # Options: "fixed", "adaptive"
 
 # Visualization settings
 visualization:
-  enabled: true
+  enabled: false
   samples_per_category: 10
   show_confidence_scores: true  # Display confidence scores on visualizations
 

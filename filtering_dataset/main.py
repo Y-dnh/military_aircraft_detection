@@ -17,6 +17,7 @@ import logging
 import shutil
 import sys
 import time
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -27,9 +28,8 @@ from transformers import CLIPModel, CLIPProcessor
 
 # Import local modules
 from image_filterer import ImageFilterer
-import visualization
 import pandas as pd
-import metrics
+import classification_analysis
 
 def setup_logging(debug: bool = False) -> logging.Logger:
     """
@@ -166,7 +166,7 @@ def run_evaluation(
     eval_dir.mkdir(parents=True, exist_ok=True)
 
     # Run the evaluation
-    results = metrics.evaluate_classification(
+    results = classification_analysis.evaluate_classification(
         manual_dir=manual_dir,
         clip_results_df=clip_results_df,
         output_dir=eval_dir,
@@ -183,6 +183,83 @@ def run_evaluation(
     if results['misclassifications']:
         error_rate = results['misclassifications']['misclassification_rate'] * 100
         logger.info(f"Misclassification rate: {error_rate:.2f}%")
+
+
+def load_model(model_name: str, logger: logging.Logger):
+    """
+    Loads a CLIP model. Supports both standard HuggingFace models
+    and local fine-tuned models in .pt format.
+
+    Args:
+        model_name: Path to model or HuggingFace model identifier
+        logger: Logger instance
+
+    Returns:
+        tuple: (model, processor)
+    """
+    # Check if model is a local .pt file
+    if model_name.endswith('.pt') and os.path.exists(model_name):
+        logger.info(f"Loading local PyTorch model: {model_name}")
+        try:
+            # First load a base CLIP model to get the architecture
+            base_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+            # Load the state dictionary
+            state_dict = torch.load(model_name,
+                                    map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+
+            # If the loaded object is already a model (not just a state dict), use it directly
+            if isinstance(state_dict, torch.nn.Module):
+                logger.info("Loaded object is already a model instance")
+                model = state_dict
+            else:
+                logger.info("Loaded object is a state dictionary, applying to base model")
+
+                # Handle different saving formats
+                if isinstance(state_dict, dict) and 'model_state_dict' in state_dict:
+                    # It's wrapped in a dictionary, common when saving with optimizer states
+                    base_model.load_state_dict(state_dict['model_state_dict'])
+                else:
+                    # Try to load directly, this might fail if keys don't match exactly
+                    try:
+                        base_model.load_state_dict(state_dict)
+                    except Exception as e:
+                        logger.warning(f"Direct loading failed: {e}")
+                        logger.info("Trying to load with more flexible key matching...")
+                        # More flexible loading that ignores missing and unexpected keys
+                        base_model.load_state_dict(state_dict, strict=False)
+
+                model = base_model
+
+            logger.info("Model successfully loaded from local file")
+            return model, processor
+
+        except Exception as e:
+            logger.error(f"Error loading local model: {str(e)}")
+            raise
+
+    # If path points to a directory, try to load as a local HuggingFace model
+    elif os.path.isdir(model_name):
+        logger.info(f"Loading local HuggingFace model: {model_name}")
+        try:
+            model = CLIPModel.from_pretrained(model_name)
+            processor = CLIPProcessor.from_pretrained(model_name)
+            return model, processor
+        except Exception as e:
+            logger.error(f"Error loading model from directory: {str(e)}")
+            raise
+
+    # Otherwise, assume it's a HuggingFace model identifier
+    else:
+        logger.info(f"Loading model from HuggingFace: {model_name}")
+        try:
+            model = CLIPModel.from_pretrained(model_name)
+            processor = CLIPProcessor.from_pretrained(model_name)
+            return model, processor
+        except Exception as e:
+            logger.error(f"Error loading model from HuggingFace: {str(e)}")
+            raise
 
 
 def main() -> None:
@@ -231,9 +308,13 @@ def main() -> None:
 
     # Load CLIP model and processor
     logger.info(f"Loading CLIP model '{model_name}'...")
-    model = CLIPModel.from_pretrained(model_name)
-    processor = CLIPProcessor.from_pretrained(model_name)
-    logger.info(f"Using device: {device}")
+    try:
+        model, processor = load_model(model_name, logger)
+        logger.info(f"Using device: {device}")
+    except Exception as e:
+        logger.error(f"Failed to load model: {str(e)}")
+        logger.info("Перевірте, що шлях до моделі вказано правильно в config.yml")
+        return
 
     # Initialize filterer
     filterer = ImageFilterer(model, processor, device)
@@ -280,7 +361,7 @@ def main() -> None:
     # Generate visualizations if enabled
     if config['visualization']['enabled']:
         logger.info("Generating visualizations...")
-        visualization.create_all_visualizations(results_df, viz_dir)
+        classification_analysis.create_all_visualizations(results_df, viz_dir)
 
     # Run evaluation if manual classification is available
     if 'manual_classification_dir' in config.get('evaluation', {}):

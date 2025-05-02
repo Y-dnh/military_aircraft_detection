@@ -104,7 +104,7 @@ def analyze_results(df: pd.DataFrame) -> Dict[str, any]:
     df_sorted = df.sort_values('best_score')
     borderline_cases = df_sorted.head(10)[['filename', 'best_category', 'best_score']]
 
-    # Find highest confidence cases
+    # Find the highest confidence cases
     confident_cases = df_sorted.tail(10)[['filename', 'best_category', 'best_score']]
 
     return {

@@ -5,7 +5,6 @@ paths:
   dataset: "dataset"
   output: "results/filtered_dataset"
   results: "results/metrics"
-  visualizations: "results/visualizations"
 
 # CLIP model configuration
 model:
@@ -130,11 +129,6 @@ classification:
   use_negative_prompts: false  # Enable negative prompt functionality
   confidence_strategy: "fixed"  # Options: "fixed", "adaptive"
 
-# Visualization settings
-visualization:
-  enabled: false
-  samples_per_category: 10
-  show_confidence_scores: true  # Display confidence scores on visualizations
 
 # Evaluation configuration for comparing with manual classification
 evaluation:

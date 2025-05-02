@@ -1534,7 +1534,6 @@ def run_evaluation(
         results_df: pd.DataFrame,
         output_dir: Union[str, Path],
         low_quality_category: Optional[str] = 'shit_data',
-        generate_visualizations_only: bool = False
 ) -> Dict:
     """
     Main function to run the complete evaluation pipeline.
@@ -1544,7 +1543,6 @@ def run_evaluation(
         results_df: DataFrame with classification results
         output_dir: Directory to save all results and visualizations
         low_quality_category: Name of the low-quality category
-        generate_visualizations_only: If True, only generate visualizations without metrics
 
     Returns:
         Dictionary with all evaluation results
@@ -1554,18 +1552,10 @@ def run_evaluation(
 
     logging.info(f"Starting evaluation with {len(results_df)} images")
 
-    if generate_visualizations_only:
-        logging.info("Generating visualizations only (no metrics)")
-        viz_dir = output_path / 'visualizations'
-        viz_dir.mkdir(exist_ok=True)
-
-        viz_paths = create_all_visualizations(results_df, viz_dir)
-        return {'visualizations': viz_paths}
-    else:
-        logging.info("Running full evaluation with metrics")
-        return evaluate_classification(
-            manual_dir, results_df, output_path, low_quality_category
-        )
+    logging.info("Running full evaluation with metrics")
+    return evaluate_classification(
+        manual_dir, results_df, output_path, low_quality_category
+    )
 
 
 if __name__ == "__main__":
@@ -1576,7 +1566,6 @@ if __name__ == "__main__":
     parser.add_argument("--results-csv", required=True, help="CSV file with classification results")
     parser.add_argument("--output-dir", required=True, help="Directory to save evaluation results")
     parser.add_argument("--low-quality-category", default="shit_data", help="Name of low-quality category")
-    parser.add_argument("--visualizations-only", action="store_true", help="Generate only visualizations")
 
     args = parser.parse_args()
 
@@ -1589,5 +1578,4 @@ if __name__ == "__main__":
         results_df,
         args.output_dir,
         args.low_quality_category,
-        args.visualizations_only
     )

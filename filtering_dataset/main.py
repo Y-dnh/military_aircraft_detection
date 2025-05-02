@@ -281,12 +281,10 @@ def main() -> None:
     dataset_dir = Path(config['paths']['dataset'])
     output_dir = Path(config['paths']['output'])
     results_dir = Path(config['paths']['results'])
-    viz_dir = Path(config['paths']['visualizations'])
 
     # Create output directories
     output_dir.mkdir(parents=True, exist_ok=True)
     results_dir.mkdir(parents=True, exist_ok=True)
-    viz_dir.mkdir(parents=True, exist_ok=True)
 
     # Validate dataset exists
     if not dataset_dir.is_dir():
@@ -358,10 +356,6 @@ def main() -> None:
         logger.info("Copying images to category folders...")
         copy_images_to_categories(results_df, output_dir, logger)
 
-    # Generate visualizations if enabled
-    if config['visualization']['enabled']:
-        logger.info("Generating visualizations...")
-        classification_analysis.create_all_visualizations(results_df, viz_dir)
 
     # Run evaluation if manual classification is available
     if 'manual_classification_dir' in config.get('evaluation', {}):
